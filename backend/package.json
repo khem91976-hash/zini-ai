@@ -1,0 +1,26 @@
+{
+  "name": "zini-ai-backend-engine",
+  "version": "2.1.0",
+  "description": "Zini AI - Production SaaS Backend powered by Gemini",
+  "main": "server.js",
+  "type": "module",
+  "author": "Zini AI Systems",
+  "license": "Commercial",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node utils/seeder.js"
+  },
+  "dependencies": {
+    "@google/genai": "^1.32.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.0.0",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^1.1.1",
+    "socket.io": "^4.7.2"
+  }
+}
