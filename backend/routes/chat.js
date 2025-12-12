@@ -4,15 +4,14 @@ import pdfParse from 'pdf-parse';
 import { verifyZiniToken } from '../middleware/auth.js';
 import User from '../models/User.js';
 import ChatSession from '../models/ChatSession.js';
-import { getZiniEngine } from '../utils/geminiHelper.js';
 import { processZiniRequest } from '../utils/ziniCore.js';
 
 const ziniChatRouter = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// TODO: Implement Redis caching for frequent queries to reduce API latency.
-// TODO: Add vector embedding support (Pinecone) for RAG (Retrieval-Augmented Generation).
-
+// ============================================================================
+// 1. TEXT & PDF ANALYSIS ROUTE (Ye waisa hi hai)
+// ============================================================================
 ziniChatRouter.post('/analyze', verifyZiniToken, upload.single('file'), async (req, res) => {
   if (req.ziniUser.credits < 1) return res.status(402).json({ error: 'Insufficient credits balance.' });
 
@@ -60,46 +59,53 @@ ziniChatRouter.post('/analyze', verifyZiniToken, upload.single('file'), async (r
 
   } catch (err) {
     console.error("[Zini Core] Analysis Error:", err.message);
-    // Refund credit on failure
     await User.findByIdAndUpdate(req.ziniUser._id, { $inc: { credits: 1 } });
     res.status(500).json({ error: 'Analysis service interrupted.' });
   }
 });
 
+// ============================================================================
+// 2. IMAGE GENERATION ROUTE (MAGIC FIX: Pollinations AI) 🎨
+// ============================================================================
 ziniChatRouter.post('/image', verifyZiniToken, async (req, res) => {
+  // Check Credits
   if (req.ziniUser.credits < 5) return res.status(402).json({ error: 'Insufficient credits.' });
 
   try {
-    const ziniEngine = await getZiniEngine();
     const { prompt } = req.body;
-
+    
+    // Deduct Credits first
     await User.findByIdAndUpdate(req.ziniUser._id, { $inc: { credits: -5 } });
 
-    const response = await ziniEngine.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: { parts: [{ text: prompt }] },
-      config: { imageConfig: { aspectRatio: "1:1" } }
-    });
+    // ---------------------------------------------------------
+    // MAGIC FIX: Using Pollinations AI (No API Key Required)
+    // ---------------------------------------------------------
+    
+    // 1. Encode the prompt (Spaces ko %20 mein badalna zaroori hai)
+    const safePrompt = encodeURIComponent(prompt);
+    
+    // 2. Random seed lagate hain taaki har baar alag image bane
+    const randomSeed = Math.floor(Math.random() * 100000);
+    
+    // 3. Construct URL (High Quality, 1:1 Aspect Ratio)
+    const imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1024&height=1024&nologo=true&seed=${randomSeed}&model=flux`;
 
-    let imageUrl = null;
-    if (response.candidates?.[0]?.content?.parts) {
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-          imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          break;
-        }
-      }
-    }
+    // ---------------------------------------------------------
 
-    if (!imageUrl) throw new Error("Image generation returned empty payload.");
-
+    // Send direct URL to frontend
     res.json({ imageUrl, credits: req.ziniUser.credits - 5 });
+
   } catch (err) {
+    console.error("Image Gen Error:", err);
+    // Refund credits on failure
     await User.findByIdAndUpdate(req.ziniUser._id, { $inc: { credits: 5 } });
     res.status(500).json({ error: 'Image generation failed.' });
   }
 });
 
+// ============================================================================
+// 3. HISTORY ROUTES
+// ============================================================================
 ziniChatRouter.get('/history', verifyZiniToken, async (req, res) => {
     try {
         const sessions = await ChatSession.find({ userId: req.ziniUser._id })
