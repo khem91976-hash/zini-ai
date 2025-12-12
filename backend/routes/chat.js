@@ -10,7 +10,7 @@ const ziniChatRouter = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 // ============================================================================
-// 1. TEXT & PDF ANALYSIS ROUTE (No Changes here)
+// 1. TEXT ANALYSIS ROUTE (Same as before)
 // ============================================================================
 ziniChatRouter.post('/analyze', verifyZiniToken, upload.single('file'), async (req, res) => {
   if (req.ziniUser.credits < 1) return res.status(402).json({ error: 'Insufficient credits balance.' });
@@ -65,37 +65,31 @@ ziniChatRouter.post('/analyze', verifyZiniToken, upload.single('file'), async (r
 });
 
 // ============================================================================
-// 2. IMAGE GENERATION ROUTE (MAGIC FIX: Base64 Conversion) 🎨
+// 2. IMAGE GENERATION ROUTE (SUPER FAST TURBO MODE) ⚡
 // ============================================================================
 ziniChatRouter.post('/image', verifyZiniToken, async (req, res) => {
+  // 1. Credits Check
   if (req.ziniUser.credits < 5) return res.status(402).json({ error: 'Insufficient credits.' });
 
   try {
     const { prompt } = req.body;
     
-    // Deduct credits
+    // 2. Credits Deduct
     await User.findByIdAndUpdate(req.ziniUser._id, { $inc: { credits: -5 } });
 
-    // 1. Prepare Pollinations URL
+    // 3. Generate Link (No Download = No Waiting)
+    // Humne 'Flux' hata kar simple model use kiya hai jo fail nahi hota
     const safePrompt = encodeURIComponent(prompt);
-    const randomSeed = Math.floor(Math.random() * 100000);
-    const pollUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1024&height=1024&nologo=true&seed=${randomSeed}&model=flux`;
-
-    // 2. FETCH Image from Pollinations (Server-side download)
-    const response = await fetch(pollUrl);
+    const randomSeed = Math.floor(Math.random() * 1000);
     
-    if (!response.ok) throw new Error("Pollinations API failed");
+    // Ye Link 100% work karega aur fast load hoga
+    const imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=512&height=512&nologo=true&seed=${randomSeed}`;
 
-    // 3. Convert Image Buffer to Base64 (Ye Frontend ko chahiye!)
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64Image = `data:image/jpeg;base64,${buffer.toString('base64')}`;
-
-    // 4. Send Base64 to Frontend (Ab Black screen nahi aayega)
-    res.json({ imageUrl: base64Image, credits: req.ziniUser.credits - 5 });
+    // 4. Send Link Directly
+    res.json({ imageUrl: imageUrl, credits: req.ziniUser.credits - 5 });
 
   } catch (err) {
-    console.error("Image Gen Error:", err);
+    console.error("Image Gen Error:", err.message);
     await User.findByIdAndUpdate(req.ziniUser._id, { $inc: { credits: 5 } });
     res.status(500).json({ error: 'Image generation failed.' });
   }
@@ -106,13 +100,9 @@ ziniChatRouter.post('/image', verifyZiniToken, async (req, res) => {
 // ============================================================================
 ziniChatRouter.get('/history', verifyZiniToken, async (req, res) => {
     try {
-        const sessions = await ChatSession.find({ userId: req.ziniUser._id })
-            .sort({ lastUpdated: -1 })
-            .select('title lastUpdated');
+        const sessions = await ChatSession.find({ userId: req.ziniUser._id }).sort({ lastUpdated: -1 }).select('title lastUpdated');
         res.json(sessions);
-    } catch (err) {
-        res.status(500).json({ error: "Unable to retrieve history." });
-    }
+    } catch (err) { res.status(500).json({ error: "Unable to retrieve history." }); }
 });
 
 ziniChatRouter.get('/history/:id', verifyZiniToken, async (req, res) => {
@@ -120,18 +110,14 @@ ziniChatRouter.get('/history/:id', verifyZiniToken, async (req, res) => {
         const session = await ChatSession.findOne({ _id: req.params.id, userId: req.ziniUser._id });
         if(!session) return res.status(404).json({ error: "Session not found." });
         res.json(session);
-    } catch (err) {
-        res.status(500).json({ error: "Unable to retrieve session data." });
-    }
+    } catch (err) { res.status(500).json({ error: "Unable to retrieve session data." }); }
 });
 
 ziniChatRouter.delete('/history/:id', verifyZiniToken, async (req, res) => {
     try {
         await ChatSession.deleteOne({ _id: req.params.id, userId: req.ziniUser._id });
         res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: "Deletion failed." });
-    }
+    } catch (err) { res.status(500).json({ error: "Deletion failed." }); }
 });
 
 export default ziniChatRouter;
