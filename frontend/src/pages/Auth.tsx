@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import api from '../utils/api';
-import { Loader2, ArrowRight, Github, Chrome } from 'lucide-react';
+import { Loader2, ArrowRight, Github, Chrome, KeyRound, Copy, Check } from 'lucide-react';
 import { APP_CONFIG } from '../config';
 import { useBranding } from '../contexts/BrandingContext';
 
@@ -15,6 +15,9 @@ const Auth: React.FC<AuthProps> = ({ onLogin, navigate }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { appName } = useBranding();
+  
+  // Copy state for better UX
+  const [copied, setCopied] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +46,14 @@ const Auth: React.FC<AuthProps> = ({ onLogin, navigate }) => {
 
   const socialLoginMock = (provider: string) => {
       alert(`${provider} Login is configured. In production, this redirects to OAuth provider.`);
+  };
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(field);
+    // Auto-fill form for convenience
+    setFormData(prev => ({ ...prev, [field]: text }));
+    setTimeout(() => setCopied(null), 2000);
   };
 
   return (
@@ -139,6 +150,52 @@ const Auth: React.FC<AuthProps> = ({ onLogin, navigate }) => {
             )}
           </button>
         </form>
+
+        {/* 👇 DEMO CREDENTIALS BOX (Visible only on Login) 👇 */}
+        {isLogin && (
+          <div className="mt-6 p-4 bg-surface/50 border border-primary/20 rounded-xl relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-primary to-secondary"></div>
+            <div className="flex items-center gap-2 mb-3 text-primary font-bold text-sm uppercase tracking-wide">
+              <KeyRound size={16} /> 
+              <span>Demo Admin Access</span>
+            </div>
+            
+            <div className="space-y-2">
+              {/* User Row */}
+              <div className="flex items-center justify-between bg-background/50 p-2 rounded-lg border border-border/50">
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-text-secondary uppercase font-bold">Email</span>
+                  <span className="text-sm font-mono text-text-main font-semibold">admin@demo.com</span>
+                </div>
+                <button 
+                  onClick={() => copyToClipboard('admin@demo.com', 'email')}
+                  className="p-1.5 hover:bg-primary/10 rounded-md text-text-secondary hover:text-primary transition"
+                  title="Copy Email"
+                >
+                  {copied === 'email' ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+                </button>
+              </div>
+
+              {/* Password Row */}
+              <div className="flex items-center justify-between bg-background/50 p-2 rounded-lg border border-border/50">
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-text-secondary uppercase font-bold">Password</span>
+                  <span className="text-sm font-mono text-text-main font-semibold">zinikhem</span>
+                </div>
+                <button 
+                  onClick={() => copyToClipboard('zinikhem', 'password')}
+                  className="p-1.5 hover:bg-primary/10 rounded-md text-text-secondary hover:text-primary transition"
+                  title="Copy Password"
+                >
+                  {copied === 'password' ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+                </button>
+              </div>
+            </div>
+            <p className="text-[10px] text-text-secondary mt-2 text-center">
+              Click copy icon to auto-fill credentials
+            </p>
+          </div>
+        )}
 
         <div className="mt-8 text-center">
             <p className="text-text-secondary text-sm">
