@@ -10,7 +10,7 @@ const ziniChatRouter = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 // ============================================================================
-// 1. TEXT & PDF ANALYSIS ROUTE (Ye waisa hi hai)
+// 1. TEXT & PDF ANALYSIS ROUTE (No Changes here)
 // ============================================================================
 ziniChatRouter.post('/analyze', verifyZiniToken, upload.single('file'), async (req, res) => {
   if (req.ziniUser.credits < 1) return res.status(402).json({ error: 'Insufficient credits balance.' });
@@ -65,39 +65,37 @@ ziniChatRouter.post('/analyze', verifyZiniToken, upload.single('file'), async (r
 });
 
 // ============================================================================
-// 2. IMAGE GENERATION ROUTE (MAGIC FIX: Pollinations AI) 🎨
+// 2. IMAGE GENERATION ROUTE (MAGIC FIX: Base64 Conversion) 🎨
 // ============================================================================
 ziniChatRouter.post('/image', verifyZiniToken, async (req, res) => {
-  // Check Credits
   if (req.ziniUser.credits < 5) return res.status(402).json({ error: 'Insufficient credits.' });
 
   try {
     const { prompt } = req.body;
     
-    // Deduct Credits first
+    // Deduct credits
     await User.findByIdAndUpdate(req.ziniUser._id, { $inc: { credits: -5 } });
 
-    // ---------------------------------------------------------
-    // MAGIC FIX: Using Pollinations AI (No API Key Required)
-    // ---------------------------------------------------------
-    
-    // 1. Encode the prompt (Spaces ko %20 mein badalna zaroori hai)
+    // 1. Prepare Pollinations URL
     const safePrompt = encodeURIComponent(prompt);
-    
-    // 2. Random seed lagate hain taaki har baar alag image bane
     const randomSeed = Math.floor(Math.random() * 100000);
+    const pollUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1024&height=1024&nologo=true&seed=${randomSeed}&model=flux`;
+
+    // 2. FETCH Image from Pollinations (Server-side download)
+    const response = await fetch(pollUrl);
     
-    // 3. Construct URL (High Quality, 1:1 Aspect Ratio)
-    const imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1024&height=1024&nologo=true&seed=${randomSeed}&model=flux`;
+    if (!response.ok) throw new Error("Pollinations API failed");
 
-    // ---------------------------------------------------------
+    // 3. Convert Image Buffer to Base64 (Ye Frontend ko chahiye!)
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64Image = `data:image/jpeg;base64,${buffer.toString('base64')}`;
 
-    // Send direct URL to frontend
-    res.json({ imageUrl, credits: req.ziniUser.credits - 5 });
+    // 4. Send Base64 to Frontend (Ab Black screen nahi aayega)
+    res.json({ imageUrl: base64Image, credits: req.ziniUser.credits - 5 });
 
   } catch (err) {
     console.error("Image Gen Error:", err);
-    // Refund credits on failure
     await User.findByIdAndUpdate(req.ziniUser._id, { $inc: { credits: 5 } });
     res.status(500).json({ error: 'Image generation failed.' });
   }
