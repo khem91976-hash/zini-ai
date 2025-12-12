@@ -5,7 +5,10 @@
 export const APP_CONFIG = {
   name: "Zini AI",
   tagline: "Your Intelligent AI Assistant",
-  apiUrl: '/api',
+  
+  // 👇 YAHAN CHANGE KIYA HAI (Direct Render Link)
+  apiUrl: 'https://zini-backend.onrender.com/api', 
+  
   adminPath: '/admin',
 
   // Subscription Plans
